@@ -5,9 +5,11 @@ author baiyu
 import os
 import sys
 import pickle
+import glob
+from PIL import Image
 
-from skimage import io
-import matplotlib.pyplot as plt
+# from skimage import io
+# import matplotlib.pyplot as plt
 import numpy
 import torch
 from torch.utils.data import Dataset
@@ -61,3 +63,25 @@ class CIFAR100Test(Dataset):
             image = self.transform(image)
         return label, image
 
+
+class ETL952Dataset(Dataset):
+    """ETL952 dataset, derived from
+    torch.utils.data.DataSet
+    """
+
+    def __init__(self, path, transform=None):
+        self.data = glob.glob(os.path.join(path, "**/*.png"))
+        # if transform is given, we transoform data using
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        # the label is the name of the parent folder
+        label = int(self.data[index].split("/")[-2])
+        image = Image.open(self.data[index])
+
+        if self.transform:
+            image = self.transform(image)
+        return image, label

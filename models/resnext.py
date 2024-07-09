@@ -64,12 +64,12 @@ class ResNextBottleNeckC(nn.Module):
 
 class ResNext(nn.Module):
 
-    def __init__(self, block, num_blocks, class_names=100):
+    def __init__(self, input_num_channels, block, num_blocks, num_classes=100):
         super().__init__()
         self.in_channels = 64
 
         self.conv1 = nn.Sequential(
-            nn.Conv2d(3, 64, 3, stride=1, padding=1, bias=False),
+            nn.Conv2d(input_num_channels, 64, 3, stride=1, padding=1, bias=False),
             nn.BatchNorm2d(64),
             nn.ReLU(inplace=True)
         )
@@ -79,7 +79,7 @@ class ResNext(nn.Module):
         self.conv4 = self._make_layer(block, num_blocks[2], 256, 2)
         self.conv5 = self._make_layer(block, num_blocks[3], 512, 2)
         self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * 4, 100)
+        self.fc = nn.Linear(512 * 4, num_classes)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -114,17 +114,17 @@ class ResNext(nn.Module):
 def resnext50():
     """ return a resnext50(c32x4d) network
     """
-    return ResNext(ResNextBottleNeckC, [3, 4, 6, 3])
+    return ResNext(1, ResNextBottleNeckC, [3, 4, 6, 3], num_classes=952)
 
 def resnext101():
     """ return a resnext101(c32x4d) network
     """
-    return ResNext(ResNextBottleNeckC, [3, 4, 23, 3])
+    return ResNext(1, ResNextBottleNeckC, [3, 4, 23, 3], num_classes=952)
 
 def resnext152():
     """ return a resnext101(c32x4d) network
     """
-    return ResNext(ResNextBottleNeckC, [3, 4, 36, 3])
+    return ResNext(1, ResNextBottleNeckC, [3, 4, 36, 3], num_classes=952)
 
 
 
