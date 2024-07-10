@@ -28,6 +28,25 @@ BASEWIDTH = 64
 #The grouped convolutional layer concatenates them as the outputs
 #of the layer."""
 
+class SEBlock(nn.Module):
+    def __init__(self, channels):
+        super().__init__()
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv_down = nn.Conv2d(
+            channels * 4, channels // 4, kernel_size=1, bias=False)
+        self.relu = nn.ReLU(inplace=True)
+        self.conv_up = nn.Conv2d(
+            channels // 4, channels * 4, kernel_size=1, bias=False)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        out = self.global_pool(x)
+        out = self.conv_down(out)
+        out = self.relu(out)
+        out = self.conv_up(out)
+        out = self.sigmoid(out)
+        return out * x
+
 class ResNextBottleNeckC(nn.Module):
 
     def __init__(self, in_channels, out_channels, stride):
@@ -49,6 +68,7 @@ class ResNextBottleNeckC(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(C * D, out_channels * 4, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels * 4),
+            SEBlock(out_channels),
         )
 
         self.shortcut = nn.Sequential()
