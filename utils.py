@@ -180,7 +180,7 @@ def get_training_dataloader(path, batch_size=16, num_workers=2, shuffle=True):
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(15),
         transforms.ToTensor(),
-        # transforms.Normalize((0.5), (0.5))
+        transforms.Normalize((0.5), (0.5))
     ])
     etl952_training = ETL952Dataset(path, transform=transform_train)
     training_loader = DataLoader(
@@ -200,7 +200,7 @@ def get_test_dataloader(path, batch_size=16, num_workers=2, shuffle=False):
 
     transform_test = transforms.Compose([
         transforms.ToTensor(),
-        # transforms.Normalize((0.5), (0.5))
+        transforms.Normalize((0.5), (0.5))
     ])
     etl952_test = ETL952Dataset(path, transform=transform_test)
     test_loader = DataLoader(
