@@ -127,6 +127,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     net = get_network(args)
+    print("Parameter numbers: {}".format(sum(p.numel() for p in net.parameters())))
 
     train_path = "data/etl_952_singlechar_size_64/952_train"
     test_path = "data/etl_952_singlechar_size_64/952_val"

@@ -49,7 +49,7 @@ class SEBlock(nn.Module):
 
 class ResNextBottleNeckC(nn.Module):
 
-    def __init__(self, in_channels, out_channels, stride):
+    def __init__(self, in_channels, out_channels, stride, add_se_block=False):
         super().__init__()
 
         C = CARDINALITY #How many groups a feature map was splitted into
@@ -68,8 +68,10 @@ class ResNextBottleNeckC(nn.Module):
             nn.ReLU(inplace=True),
             nn.Conv2d(C * D, out_channels * 4, kernel_size=1, bias=False),
             nn.BatchNorm2d(out_channels * 4),
-            SEBlock(out_channels),
         )
+
+        if add_se_block:
+            self.split_transforms.append(SEBlock(out_channels))
 
         self.shortcut = nn.Sequential()
 
@@ -131,10 +133,65 @@ class ResNext(nn.Module):
 
         return nn.Sequential(*layers)
 
+
+class SEResNext(nn.Module):
+
+    def __init__(self, input_num_channels, block, num_blocks, num_classes=100):
+        super().__init__()
+        self.in_channels = 64
+
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(input_num_channels, 64, 3, stride=1, padding=1, bias=False),
+            nn.BatchNorm2d(64),
+            nn.ReLU(inplace=True)
+        )
+
+        self.conv2 = self._make_layer(block, num_blocks[0], 64, 1)
+        self.conv3 = self._make_layer(block, num_blocks[1], 128, 2)
+        self.conv4 = self._make_layer(block, num_blocks[2], 256, 2)
+        self.conv5 = self._make_layer(block, num_blocks[3], 512, 2)
+        self.avg = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(512 * 4, num_classes)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = self.conv5(x)
+        x = self.avg(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
+        return x
+
+    def _make_layer(self, block, num_block, out_channels, stride):
+        """Building resnext block
+        Args:
+            block: block type(default resnext bottleneck c)
+            num_block: number of blocks per layer
+            out_channels: output channels per block
+            stride: block stride
+
+        Returns:
+            a resnext layer
+        """
+        strides = [stride] + [1] * (num_block - 1)
+        layers = []
+        for stride in strides:
+            layers.append(block(self.in_channels, out_channels, stride, add_se_block=True))
+            self.in_channels = out_channels * 4
+
+        return nn.Sequential(*layers)
+
 def resnext50():
     """ return a resnext50(c32x4d) network
     """
     return ResNext(1, ResNextBottleNeckC, [3, 4, 6, 3], num_classes=952)
+
+def seresnext50():
+    """ return a seresnext50(c32x4d) network
+    """
+    return SEResNext(1, ResNextBottleNeckC, [3, 4, 6, 3], num_classes=952)
 
 def resnext101():
     """ return a resnext101(c32x4d) network

@@ -94,6 +94,9 @@ def get_network(args):
     elif args.net == 'resnext50':
         from models.resnext import resnext50
         net = resnext50()
+    elif args.net == 'seresnext50':
+        from models.resnext import seresnext50
+        net = seresnext50()
     elif args.net == 'resnext101':
         from models.resnext import resnext101
         net = resnext101()
