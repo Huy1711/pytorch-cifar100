@@ -129,7 +129,7 @@ if __name__ == '__main__':
     net = get_network(args)
 
     train_path = "data/etl_952_singlechar_size_64/952_train"
-    test_path = "data/etl_952_singlechar_size_64/952_test"
+    test_path = "data/etl_952_singlechar_size_64/952_val"
 
     #data preprocessing:
     training_loader = get_training_dataloader(
