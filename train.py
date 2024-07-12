@@ -66,6 +66,8 @@ def train(epoch):
         ))
 
         #update training loss for each iteration
+        writer.add_scalar('Train/cls_loss', cls_loss.item(), n_iter)
+        writer.add_scalar('Train/ctc_loss', ctc_loss.item(), n_iter)
         writer.add_scalar('Train/loss', loss.item(), n_iter)
 
         if epoch <= args.warm:
