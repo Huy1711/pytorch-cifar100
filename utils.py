@@ -2,6 +2,7 @@
 
 author baiyu
 """
+import csv
 import os
 import sys
 import re
@@ -15,7 +16,7 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 
-from dataset import ETL952Dataset
+from dataset import ETL952Dataset, ETL952EvalDataset
 
 
 def get_network(args):
@@ -167,8 +168,20 @@ def get_network(args):
 
     return net
 
+def collate_data_function(batch):
+    images = [data[0] for data in batch]
+    images = torch.stack(images)
 
-def get_training_dataloader(path, batch_size=16, num_workers=2, shuffle=True):
+    labels = [data[1] for data in batch]
+    labels = torch.LongTensor(labels)
+
+    cangjie_labels = [data[2] for data in batch]
+    cangjie_lengths = torch.tensor([t.shape[0] for t in cangjie_labels])
+    cangjie_labels = torch.nn.utils.rnn.pad_sequence(cangjie_labels, batch_first=True)
+
+    return images, labels, cangjie_labels, cangjie_lengths
+
+def get_training_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=True):
     """ return training dataloader
     Args:
         path: path to training python dataset
@@ -185,11 +198,46 @@ def get_training_dataloader(path, batch_size=16, num_workers=2, shuffle=True):
         transforms.ToTensor(),
         transforms.Normalize((0.5), (0.5))
     ])
-    etl952_training = ETL952Dataset(path, transform=transform_train)
+    vocab = get_vocab()
+    cangjie_dict = get_cangjie_dict(labels_path)
+    etl952_training = ETL952Dataset(path, vocab, cangjie_dict, transform=transform_train)
     training_loader = DataLoader(
-        etl952_training, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
+        etl952_training, 
+        shuffle=shuffle, 
+        num_workers=num_workers, 
+        batch_size=batch_size,
+        collate_fn=collate_data_function,
+    )
 
     return training_loader
+
+def get_val_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=False):
+    """ return training dataloader
+    Args:
+        path: path to test python dataset
+        batch_size: dataloader batchsize
+        num_workers: dataloader num_works
+        shuffle: whether to shuffle
+    Returns: cifar100_test_loader:torch dataloader object
+    """
+
+    transform_test = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5), (0.5))
+    ])
+    vocab = get_vocab()
+    cangjie_dict = get_cangjie_dict(labels_path)
+    etl952_test = ETL952Dataset(path, vocab, cangjie_dict, transform=transform_test)
+    test_loader = DataLoader(
+        etl952_test,
+        shuffle=shuffle,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        collate_fn=collate_data_function,
+    )
+
+    return test_loader
+
 
 def get_test_dataloader(path, batch_size=16, num_workers=2, shuffle=False):
     """ return training dataloader
@@ -205,11 +253,12 @@ def get_test_dataloader(path, batch_size=16, num_workers=2, shuffle=False):
         transforms.ToTensor(),
         transforms.Normalize((0.5), (0.5))
     ])
-    etl952_test = ETL952Dataset(path, transform=transform_test)
+    etl952_test = ETL952EvalDataset(path, transform=transform_test)
     test_loader = DataLoader(
         etl952_test, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
 
     return test_loader
+
 
 def compute_mean_std(cifar100_dataset):
     """compute the mean and std of cifar100 dataset
@@ -304,3 +353,21 @@ def best_acc_weights(weights_folder):
 
     best_files = sorted(best_files, key=lambda w: int(re.search(regex_str, w).groups()[1]))
     return best_files[-1]
+
+
+def get_vocab(): 
+    with open("cangjie_vocab.txt", "r") as f:
+        vocab = f.read().split("\n")[:-1]
+    return vocab
+
+
+def get_cangjie_dict(path: str):
+    
+    reader = csv.reader(open(path), delimiter=" ")
+    next(reader, None)  # skip the headers
+
+    cangjie_dict = {
+        int(line[0]): line[-1].replace('zc', '-')
+        for line in reader
+    }
+    return cangjie_dict

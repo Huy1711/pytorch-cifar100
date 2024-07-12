@@ -13,6 +13,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .heads.classify import LinearClassifier
+from .heads.ctc import CTCHead
+
 #only implements ResNext bottleneck c
 
 
@@ -136,7 +139,14 @@ class ResNext(nn.Module):
 
 class SEResNext(nn.Module):
 
-    def __init__(self, input_num_channels, block, num_blocks, num_classes=100):
+    def __init__(
+            self, 
+            input_num_channels, 
+            block, 
+            num_blocks, 
+            num_ctc_tokens=28, 
+            num_classes=952
+        ):
         super().__init__()
         self.in_channels = 64
 
@@ -150,8 +160,18 @@ class SEResNext(nn.Module):
         self.conv3 = self._make_layer(block, num_blocks[1], 128, 2)
         self.conv4 = self._make_layer(block, num_blocks[2], 256, 2)
         self.conv5 = self._make_layer(block, num_blocks[3], 512, 2)
-        self.avg = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512 * 4, num_classes)
+
+        # CTC head
+        self.ctc = CTCHead(
+            input_dim=512*4, 
+            output_dim=num_ctc_tokens
+        )
+
+        # classification head
+        self.classifier = LinearClassifier(
+            input_dim=512*4, 
+            output_dim=num_classes
+        )
 
     def forward(self, x):
         x = self.conv1(x)
@@ -159,10 +179,10 @@ class SEResNext(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         x = self.conv5(x)
-        x = self.avg(x)
-        x = x.view(x.size(0), -1)
-        x = self.fc(x)
-        return x
+
+        cls_out = self.classifier(x)
+        ctc_out = self.ctc(x)
+        return cls_out, ctc_out
 
     def _make_layer(self, block, num_block, out_channels, stride):
         """Building resnext block
@@ -191,7 +211,7 @@ def resnext50():
 def seresnext50():
     """ return a seresnext50(c32x4d) network
     """
-    return SEResNext(1, ResNextBottleNeckC, [3, 4, 6, 3], num_classes=952)
+    return SEResNext(1, ResNextBottleNeckC, [3, 4, 6, 3], num_classes=952, num_ctc_tokens=28)
 
 def resnext101():
     """ return a resnext101(c32x4d) network

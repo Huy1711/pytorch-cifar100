@@ -14,6 +14,7 @@ import numpy
 import torch
 from torch.utils.data import Dataset
 
+
 class CIFAR100Train(Dataset):
     """cifar100 test dataset, derived from
     torch.utils.data.DataSet
@@ -65,6 +66,43 @@ class CIFAR100Test(Dataset):
 
 
 class ETL952Dataset(Dataset):
+    """ETL952 dataset, derived from
+    torch.utils.data.DataSet
+    """
+
+    def __init__(
+            self, 
+            path, 
+            vocab, 
+            cangjie_dict, 
+            transform=None
+        ):
+        self.data = glob.glob(os.path.join(path, "**/*.png"))
+        self.vocab = vocab
+        self.cangjie_dict = cangjie_dict
+        
+        # if transform is given, we transoform data using
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.data)
+
+    def __getitem__(self, index):
+        # the label is the name of the parent folder
+        label = int(self.data[index].split("/")[-2])
+        
+        tokens = self.cangjie_dict[label]
+        tokens = [self.vocab.index(token) for token in tokens]
+        cangjie_label = torch.tensor(tokens, dtype=torch.long)
+        
+        image = Image.open(self.data[index])
+
+        if self.transform:
+            image = self.transform(image)
+        return image, label, cangjie_label
+
+
+class ETL952EvalDataset(Dataset):
     """ETL952 dataset, derived from
     torch.utils.data.DataSet
     """

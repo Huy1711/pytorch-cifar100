@@ -23,21 +23,28 @@ from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from conf import settings
-from utils import get_network, get_training_dataloader, get_test_dataloader, WarmUpLR, \
+from utils import get_network, get_training_dataloader, get_val_dataloader, WarmUpLR, \
     most_recent_folder, most_recent_weights, last_epoch, best_acc_weights
 
 def train(epoch):
 
     start = time.time()
     net.train()
-    for batch_index, (images, labels) in enumerate(training_loader):
+    for batch_index, (images, labels, cangjie_labels, cangjie_lengths) in enumerate(training_loader):
         if args.gpu:
             labels = labels.cuda()
             images = images.cuda()
-
         optimizer.zero_grad()
-        outputs = net(images)
-        loss = loss_function(outputs, labels)
+        cls_out, ctc_out = net(images)
+        ctc_lengths = torch.full((ctc_out.shape[1],), ctc_out.shape[0], dtype=torch.long)
+        cls_loss = cls_loss_function(cls_out, labels)
+        ctc_loss = ctc_loss_function(
+                ctc_out,
+                cangjie_labels,
+                ctc_lengths,
+                cangjie_lengths,
+            )
+        loss = cls_loss + ctc_loss
         loss.backward()
         optimizer.step()
 
@@ -89,7 +96,7 @@ def eval_training(epoch=0, tb=True):
             labels = labels.cuda()
 
         outputs = net(images)
-        loss = loss_function(outputs, labels)
+        loss = cls_loss_function(outputs, labels)
 
         test_loss += loss.item()
         _, preds = outputs.max(1)
@@ -122,32 +129,40 @@ if __name__ == '__main__':
     parser.add_argument('-gpu', action='store_true', default=False, help='use gpu or not')
     parser.add_argument('-b', type=int, default=128, help='batch size for dataloader')
     parser.add_argument('-warm', type=int, default=1, help='warm up training phase')
-    parser.add_argument('-lr', type=float, default=0.1, help='initial learning rate')
+    parser.add_argument('-lr', type=float, default=0.01, help='initial learning rate')
     parser.add_argument('-resume', action='store_true', default=False, help='resume training')
     args = parser.parse_args()
 
     net = get_network(args)
     print("Parameter numbers: {}".format(sum(p.numel() for p in net.parameters())))
 
+    labels_path = "data/etl_952_singlechar_size_64/952_labels.txt"
     train_path = "data/etl_952_singlechar_size_64/952_train"
-    test_path = "data/etl_952_singlechar_size_64/952_val"
+    val_path = "data/etl_952_singlechar_size_64/952_val"
 
     #data preprocessing:
     training_loader = get_training_dataloader(
         path=train_path,
+        labels_path=labels_path,
         num_workers=4,
         batch_size=args.b,
         shuffle=True
     )
 
-    test_loader = get_test_dataloader(
-        path=test_path,
+    test_loader = get_val_dataloader(
+        path=val_path,
+        labels_path=labels_path,
         num_workers=4,
         batch_size=args.b,
         shuffle=False
     )
 
-    loss_function = nn.CrossEntropyLoss()
+    cls_loss_function = nn.CrossEntropyLoss()
+    ctc_loss_function = nn.CTCLoss(
+        blank=0, 
+        reduction='mean', 
+        zero_infinity=True
+    )
     optimizer = optim.SGD(net.parameters(), lr=args.lr, momentum=0.9, weight_decay=5e-4)
     train_scheduler = optim.lr_scheduler.MultiStepLR(optimizer, milestones=settings.MILESTONES, gamma=0.2) #learning rate decay
     iter_per_epoch = len(training_loader)
