@@ -126,8 +126,10 @@ def eval_training(epoch=0, tb=True):
         _, ctc_preds = ctc_out.max(2)
         ctc_preds = ctc_preds.transpose(1, 0).contiguous().view(-1)
         sim_ctc_preds = decode_cangjie(ctc_preds.data, ctc_preds_size.data, raw=False)
-        total_edit_distance += editdistance.eval(sim_ctc_preds, cangjie_raws)
-        total_cangjie_label_length += len(cangjie_raws)
+        for pred, label in zip(sim_ctc_preds, cangjie_raws):
+            total_edit_distance += editdistance.eval(pred, label)
+            total_cangjie_label_length += len(label)
+
 
     finish = time.time()
     if args.gpu:
@@ -165,9 +167,9 @@ if __name__ == '__main__':
     net = get_network(args)
     print("Parameter numbers: {}".format(sum(p.numel() for p in net.parameters())))
 
-    labels_path = "/shared/data/etl_952_singlechar_size_64/952_labels.txt"
-    train_path = "/shared/data/etl_952_singlechar_size_64/952_train"
-    val_path = "/shared/data/etl_952_singlechar_size_64/952_val"
+    labels_path = "data/etl_952_singlechar_size_64/952_labels.txt"
+    train_path = "data/etl_952_singlechar_size_64/952_train"
+    val_path = "data/etl_952_singlechar_size_64/952_val"
 
     #data preprocessing:
     training_loader = get_training_dataloader(
@@ -254,7 +256,7 @@ if __name__ == '__main__':
             if epoch <= resume_epoch:
                 continue
 
-        train(epoch)
+        # train(epoch)
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01

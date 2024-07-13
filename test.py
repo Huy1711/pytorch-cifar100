@@ -10,12 +10,14 @@ author baiyu
 
 import argparse
 
+import editdistance
 import torch
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
+from torch.autograd import Variable
 
 from conf import settings
-from utils import get_network, get_test_dataloader
+from utils import get_network, get_test_dataloader, decode_cangjie
 
 if __name__ == '__main__':
 
@@ -44,8 +46,11 @@ if __name__ == '__main__':
     correct_5 = 0.0
     total = 0
 
+    total_edit_distance = 0.0
+    total_cangjie_label_length = 0.0
+
     with torch.no_grad():
-        for n_iter, (image, label) in enumerate(test_loader):
+        for n_iter, (image, label, _, _, cangjie_raws) in enumerate(test_loader):
             print("iteration: {}\ttotal {} iterations".format(n_iter + 1, len(test_loader)))
 
             if args.gpu:
@@ -55,17 +60,26 @@ if __name__ == '__main__':
                 print(torch.cuda.memory_summary(), end='')
 
 
-            output = net(image)
-            _, pred = output.topk(5, 1, largest=True, sorted=True)
+            cls_out, ctc_out = net(image)
+            ctc_preds_size = Variable(torch.IntTensor([ctc_out.size(0)] * ctc_out.size(1)))
+            _, pred = cls_out.topk(5, 1, largest=True, sorted=True)
 
             label = label.view(label.size(0), -1).expand_as(pred)
             correct = pred.eq(label).float()
 
             #compute top 5
             correct_5 += correct[:, :5].sum()
-
             #compute top1
             correct_1 += correct[:, :1].sum()
+
+
+            # ctc preds
+            _, ctc_preds = ctc_out.max(2)
+            ctc_preds = ctc_preds.transpose(1, 0).contiguous().view(-1)
+            sim_ctc_preds = decode_cangjie(ctc_preds.data, ctc_preds_size.data, raw=False)
+            for pred, label in zip(sim_ctc_preds, cangjie_raws):
+                total_edit_distance += editdistance.eval(pred, label)
+                total_cangjie_label_length += len(label)
 
     if args.gpu:
         print('GPU INFO.....')
