@@ -23,6 +23,7 @@ import torchvision.transforms as transforms
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+from tqdm import tqdm
 
 from conf import settings
 from utils import get_network, get_training_dataloader, get_val_dataloader, WarmUpLR, \
@@ -97,7 +98,7 @@ def eval_training(epoch=0, tb=True):
     total_edit_distance = 0.0
     total_cangjie_label_length = 0.0
 
-    for data in test_loader:
+    for data in tqdm(test_loader):
         images, labels, cangjie_labels, cangjie_lengths, cangjie_raws = data
         if args.gpu:
             images = images.cuda()
@@ -124,11 +125,8 @@ def eval_training(epoch=0, tb=True):
         # ctc preds
         _, ctc_preds = ctc_out.max(2)
         ctc_preds = ctc_preds.transpose(1, 0).contiguous().view(-1)
-        print("ctc_preds", ctc_preds)
         sim_ctc_preds = decode_cangjie(ctc_preds.data, ctc_preds_size.data, raw=False)
-        print("sim_ctc_preds", sim_ctc_preds)
         total_edit_distance += editdistance.eval(sim_ctc_preds, cangjie_raws)
-        print("total_edit_distance", total_edit_distance)
         total_cangjie_label_length += len(cangjie_raws)
 
     finish = time.time()
@@ -149,6 +147,7 @@ def eval_training(epoch=0, tb=True):
     if tb:
         writer.add_scalar('Test/Average loss', test_loss / len(test_loader.dataset), epoch)
         writer.add_scalar('Test/Accuracy', cls_correct.float() / len(test_loader.dataset), epoch)
+        writer.add_scalar('Test/Cangjie_Accuracy', 1 - total_edit_distance / total_cangjie_label_length, epoch)
 
     return cls_correct.float() / len(test_loader.dataset)
 
@@ -166,9 +165,9 @@ if __name__ == '__main__':
     net = get_network(args)
     print("Parameter numbers: {}".format(sum(p.numel() for p in net.parameters())))
 
-    labels_path = "data/etl_952_singlechar_size_64/952_labels.txt"
-    train_path = "data/etl_952_singlechar_size_64/952_train"
-    val_path = "data/etl_952_singlechar_size_64/952_val"
+    labels_path = "/shared/data/etl_952_singlechar_size_64/952_labels.txt"
+    train_path = "/shared/data/etl_952_singlechar_size_64/952_train"
+    val_path = "/shared/data/etl_952_singlechar_size_64/952_val"
 
     #data preprocessing:
     training_loader = get_training_dataloader(
@@ -255,7 +254,7 @@ if __name__ == '__main__':
             if epoch <= resume_epoch:
                 continue
 
-        # train(epoch)
+        train(epoch)
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01
