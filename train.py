@@ -12,6 +12,7 @@ import argparse
 import time
 from datetime import datetime
 
+import editdistance
 import numpy as np
 import torch
 import torch.nn as nn
@@ -19,18 +20,20 @@ import torch.optim as optim
 import torchvision
 import torchvision.transforms as transforms
 
+from torch.autograd import Variable
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
 from conf import settings
 from utils import get_network, get_training_dataloader, get_val_dataloader, WarmUpLR, \
-    most_recent_folder, most_recent_weights, last_epoch, best_acc_weights
+    most_recent_folder, most_recent_weights, last_epoch, best_acc_weights, decode_cangjie
 
 def train(epoch):
 
     start = time.time()
     net.train()
-    for batch_index, (images, labels, cangjie_labels, cangjie_lengths) in enumerate(training_loader):
+    for batch_index, data in enumerate(training_loader):
+        images, labels, cangjie_labels, cangjie_lengths, _ = data
         if args.gpu:
             labels = labels.cuda()
             images = images.cuda()
@@ -89,30 +92,55 @@ def eval_training(epoch=0, tb=True):
     net.eval()
 
     test_loss = 0.0 # cost function error
-    correct = 0.0
+    cls_correct = 0.0
 
-    for (images, labels) in test_loader:
+    total_edit_distance = 0.0
+    total_cangjie_label_length = 0.0
 
+    for data in test_loader:
+        images, labels, cangjie_labels, cangjie_lengths, cangjie_raws = data
         if args.gpu:
             images = images.cuda()
             labels = labels.cuda()
 
-        outputs = net(images)
-        loss = cls_loss_function(outputs, labels)
+        cls_out, ctc_out = net(images)
+        ctc_lengths = torch.full((ctc_out.shape[1],), ctc_out.shape[0], dtype=torch.long)
+        ctc_preds_size = Variable(torch.IntTensor([ctc_out.size(0)] * ctc_out.size(1)))
+        cls_loss = cls_loss_function(cls_out, labels)
+        ctc_loss = ctc_loss_function(
+                ctc_out,
+                cangjie_labels,
+                ctc_lengths,
+                cangjie_lengths,
+            )
+        loss = cls_loss + ctc_loss
 
         test_loss += loss.item()
-        _, preds = outputs.max(1)
-        correct += preds.eq(labels).sum()
+        
+        # cls preds
+        _, cls_preds = cls_out.max(1)
+        cls_correct += cls_preds.eq(labels).sum()
+
+        # ctc preds
+        _, ctc_preds = ctc_out.max(2)
+        ctc_preds = ctc_preds.transpose(1, 0).contiguous().view(-1)
+        print("ctc_preds", ctc_preds)
+        sim_ctc_preds = decode_cangjie(ctc_preds.data, ctc_preds_size.data, raw=False)
+        print("sim_ctc_preds", sim_ctc_preds)
+        total_edit_distance += editdistance.eval(sim_ctc_preds, cangjie_raws)
+        print("total_edit_distance", total_edit_distance)
+        total_cangjie_label_length += len(cangjie_raws)
 
     finish = time.time()
     if args.gpu:
         print('GPU INFO.....')
         print(torch.cuda.memory_summary(), end='')
     print('Evaluating Network.....')
-    print('Test set: Epoch: {}, Average loss: {:.4f}, Accuracy: {:.4f}, Time consumed:{:.2f}s'.format(
+    print('Test set: Epoch: {}, Average loss: {:.4f}, Accuracy: {:.4f}, Cangjie Accuracy: {:.4f}, Time consumed:{:.2f}s'.format(
         epoch,
         test_loss / len(test_loader.dataset),
-        correct.float() / len(test_loader.dataset),
+        cls_correct.float() / len(test_loader.dataset),
+        1 - total_edit_distance / total_cangjie_label_length,
         finish - start
     ))
     print()
@@ -120,9 +148,9 @@ def eval_training(epoch=0, tb=True):
     #add informations to tensorboard
     if tb:
         writer.add_scalar('Test/Average loss', test_loss / len(test_loader.dataset), epoch)
-        writer.add_scalar('Test/Accuracy', correct.float() / len(test_loader.dataset), epoch)
+        writer.add_scalar('Test/Accuracy', cls_correct.float() / len(test_loader.dataset), epoch)
 
-    return correct.float() / len(test_loader.dataset)
+    return cls_correct.float() / len(test_loader.dataset)
 
 if __name__ == '__main__':
 
@@ -227,7 +255,7 @@ if __name__ == '__main__':
             if epoch <= resume_epoch:
                 continue
 
-        train(epoch)
+        # train(epoch)
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01

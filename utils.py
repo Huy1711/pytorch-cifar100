@@ -179,7 +179,9 @@ def collate_data_function(batch):
     cangjie_lengths = torch.tensor([t.shape[0] for t in cangjie_labels])
     cangjie_labels = torch.nn.utils.rnn.pad_sequence(cangjie_labels, batch_first=True)
 
-    return images, labels, cangjie_labels, cangjie_lengths
+    cangjie_raws = [data[3] for data in batch]
+
+    return images, labels, cangjie_labels, cangjie_lengths, cangjie_raws
 
 def get_training_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=True):
     """ return training dataloader
@@ -371,3 +373,42 @@ def get_cangjie_dict(path: str):
         for line in reader
     }
     return cangjie_dict
+
+
+def decode_cangjie(t, length, raw=False):
+        """Decode encoded texts back into strs.
+
+        Args:
+            torch.LongTensor [length_0 + length_1 + ... length_{n - 1}]: encoded texts.
+            torch.LongTensor [n]: length of each text.
+
+        Raises:
+            AssertionError: when the texts and its length does not match.
+
+        Returns:
+            text (str or list of str): texts to convert.
+        """
+        vocab = get_vocab()
+        if length.numel() == 1:
+            length = length[0]
+            assert t.numel() == length, "text with length: {} does not match declared length: {}".format(t.numel(), length)
+            if raw:
+                return ''.join([vocab[i] for i in t])
+            else:
+                char_list = []
+                for i in range(length):
+                    if t[i] != 0 and (not (i > 0 and t[i - 1] == t[i])):
+                        char_list.append(vocab[t[i]])
+                return ''.join(char_list)
+        else:
+            # batch mode
+            assert t.numel() == length.sum(), "texts with length: {} does not match declared length: {}".format(t.numel(), length.sum())
+            texts = []
+            index = 0
+            for i in range(length.numel()):
+                l = length[i]
+                texts.append(
+                    decode_cangjie(
+                        t[index:index + l], torch.LongTensor([l]), raw=raw))
+                index += l
+            return texts

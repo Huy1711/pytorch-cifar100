@@ -91,15 +91,15 @@ class ETL952Dataset(Dataset):
         # the label is the name of the parent folder
         label = int(self.data[index].split("/")[-2])
         
-        tokens = self.cangjie_dict[label]
-        tokens = [self.vocab.index(token) for token in tokens]
+        cangjie_raw = self.cangjie_dict[label]
+        tokens = [self.vocab.index(token) for token in cangjie_raw]
         cangjie_label = torch.tensor(tokens, dtype=torch.long)
         
         image = Image.open(self.data[index])
 
         if self.transform:
             image = self.transform(image)
-        return image, label, cangjie_label
+        return image, label, cangjie_label, cangjie_raw
 
 
 class ETL952EvalDataset(Dataset):
