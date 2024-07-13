@@ -31,8 +31,10 @@ if __name__ == '__main__':
     net = get_network(args)
 
     test_path = "data/etl_952_singlechar_size_64/952_test"
+    labels_path = "data/etl_952_singlechar_size_64/952_labels.txt"
     test_loader = get_test_dataloader(
         path=test_path,
+        labels_path=labels_path,
         num_workers=4,
         batch_size=args.b,
         shuffle=False

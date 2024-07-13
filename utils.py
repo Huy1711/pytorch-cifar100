@@ -213,7 +213,7 @@ def get_training_dataloader(path, labels_path, batch_size=16, num_workers=2, shu
 
     return training_loader
 
-def get_val_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=False):
+def get_test_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=False):
     """ return training dataloader
     Args:
         path: path to test python dataset
@@ -237,27 +237,6 @@ def get_val_dataloader(path, labels_path, batch_size=16, num_workers=2, shuffle=
         batch_size=batch_size,
         collate_fn=collate_data_function,
     )
-
-    return test_loader
-
-
-def get_test_dataloader(path, batch_size=16, num_workers=2, shuffle=False):
-    """ return training dataloader
-    Args:
-        path: path to test python dataset
-        batch_size: dataloader batchsize
-        num_workers: dataloader num_works
-        shuffle: whether to shuffle
-    Returns: cifar100_test_loader:torch dataloader object
-    """
-
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.5), (0.5))
-    ])
-    etl952_test = ETL952EvalDataset(path, transform=transform_test)
-    test_loader = DataLoader(
-        etl952_test, shuffle=shuffle, num_workers=num_workers, batch_size=batch_size)
 
     return test_loader
 

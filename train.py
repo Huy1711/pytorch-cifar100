@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from conf import settings
-from utils import get_network, get_training_dataloader, get_val_dataloader, WarmUpLR, \
+from utils import get_network, get_training_dataloader, get_test_dataloader, WarmUpLR, \
     most_recent_folder, most_recent_weights, last_epoch, best_acc_weights, decode_cangjie
 
 def train(epoch):
@@ -180,7 +180,7 @@ if __name__ == '__main__':
         shuffle=True
     )
 
-    test_loader = get_val_dataloader(
+    test_loader = get_test_dataloader(
         path=val_path,
         labels_path=labels_path,
         num_workers=4,
@@ -256,7 +256,7 @@ if __name__ == '__main__':
             if epoch <= resume_epoch:
                 continue
 
-        # train(epoch)
+        train(epoch)
         acc = eval_training(epoch)
 
         #start to save best performance model after learning rate decay to 0.01
