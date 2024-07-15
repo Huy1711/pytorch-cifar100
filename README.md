@@ -65,8 +65,10 @@ lr = 0.01, train for maximum 5 epochs with batchsize 64 without weight decay, Ne
 
 ## Results
 
-[Link to the report]()
+[Link to the report](https://drive.google.com/drive/folders/1QOMUvB6NInTGc8We6UXc7QAelZTGz0uC?usp=sharing)
 
 ## Tensorboard
 
-[Link to the report]()
+![train_loss](docs/task1-2-train-loss.png)
+
+![val_acc](docs/task1-2-val-acc.png)
