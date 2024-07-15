@@ -63,8 +63,10 @@ Number of layers in GRU module is 2, hidden dimension is 512 (feature maps chann
 
 ## Results
 
-[Link to the report]()
+[Link to the report](https://drive.google.com/drive/folders/1QOMUvB6NInTGc8We6UXc7QAelZTGz0uC?usp=sharing)
 
 ## Tensorboard
 
-[Link to the report]()
+![train_loss](docs/task-3-train-loss.png)
+
+![val_acc](docs/task-3-val-acc.png)
